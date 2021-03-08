@@ -3,5 +3,5 @@
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
     "WORK_LOG_DIR": "./work_log",
-    "ERROR_MAX_PERCENT": 25
+    "ERROR_MAX_PERCENT": 0
 }

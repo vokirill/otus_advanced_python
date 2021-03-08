@@ -6,44 +6,50 @@ from datetime import datetime
 import statistics as stat
 from string import Template
 import logging
+import json
 
 
-template = re.compile(r'nginx-access-ui.log-(\d{8})\d*')
+FILE_PATTERN = re.compile(r'nginx-access-ui.log-(\d{8})\d*')
+LOG_LINE_PATTERN = re.compile(r"\"[A-Z]+ ([^\s]+) .* (\d+\.\d+)\n")
 
 
 def get_full_path(location: str) -> str:
     if location.startswith('./'):
-        # return os.path.join(os.path.dirname(sys.argv[0]), location[2:])
         return os.path.join(os.path.abspath(os.getcwd()), location[2:])
     else:
         return location
 
+def parse_config(config_path:str):
+    config = {}
+    with open(config_path, 'r') as f:
+        data = json.load(f)
+    if type(data) == dict:
+        for key in data.keys():
+            config[key] = data[key]
+    return config  
 
-def get_log_date(filename: str) -> str:
-    return filename.split('-')[3].split('.')[0]
 
-
-def select_file(location: str, template=template):
+def select_file(location: str, pattern=FILE_PATTERN):
     file_list = os.listdir(location)
-    mathcing_result = [elem for elem in file_list if template.match(elem)]
-    if mathcing_result == []:
+    mathcing_result = [(elem, pattern.match(elem)) for elem in file_list if pattern.match(elem)]
+    if not mathcing_result:
         return None
     max_date = ''
     last_log_file = ''
-    for file in mathcing_result:
-        current_date = get_log_date(file)
+    for elem in mathcing_result:
+        #current_date = get_log_date(file_)
+        current_date = elem[1][1]
         if current_date > max_date:
             max_date = current_date
-            last_log_file = file
-    return last_log_file
+            last_log_file = elem[0]
+    return last_log_file, max_date
 
 
-def parse_log_line(line: str) -> dict:
+def parse_log_line(line: str, log_pattern=LOG_LINE_PATTERN) -> dict:
 
     log_info = {'url': '', 'is_error': True, 'request_time': 0}
 
-    regex = re.compile(r"\"[A-Z]+ ([^\s]+) .* (\d+\.\d+)\n")
-    parsed_line = re.findall(regex, line)
+    parsed_line = re.findall(log_pattern, line)
 
     if not parsed_line:
         return log_info

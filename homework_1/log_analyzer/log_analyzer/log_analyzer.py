@@ -3,7 +3,7 @@
 
 import os
 import sys
-from utils import *
+import buslogic
 import argparse
 import json
 import logging
@@ -26,39 +26,33 @@ config = {
 def main(config):
     try:
         parser = argparse.ArgumentParser()
-        parser.add_argument("--config", help="store path to config file")
+        parser.add_argument("--config", nargs='?', const='config.txt', help="store path to config file")
         args = parser.parse_args()
         config_path = args.config
-
+        
         if config_path:
-            with open(config_path, 'r') as f:
-                data = json.load(f)
-            if type(data) == dict:
-                for key in data.keys():
-                    config[key] = data[key]
-            else:
-                raise json.JSONDecodeError("It's not a dict")
+            config = buslogic.parse_config(config_path)
+            
         if config["WORK_LOG_DIR"]:
-            work_log_dir = get_full_path(config["WORK_LOG_DIR"])
+            work_log_dir = buslogic.get_full_path(config["WORK_LOG_DIR"])
         else:
             work_log_dir = None
-        set_logging(work_log_dir)
+        buslogic.set_logging(work_log_dir)
 
-        logdir_path = get_full_path(config['LOG_DIR'])
-        reportdir_path = get_full_path(config['REPORT_DIR'])
-        log_file = select_file(logdir_path)
+        logdir_path = buslogic.get_full_path(config['LOG_DIR'])
+        reportdir_path = buslogic.get_full_path(config['REPORT_DIR'])
+        log_file, report_date = buslogic.select_file(logdir_path)
 
         if log_file:
-            report_date = get_log_date(log_file)
             report_filename = 'report-{}.{}.{}.html'.format(
                 report_date[0:4], report_date[4:6], report_date[6:])
             if report_filename in os.listdir(reportdir_path):
                 logging.info('report already formed')
                 pass
             else:
-                statistics = count_statistics(logdir_path, log_file, config)
-                formated_statistics = statistics_formatting(statistics)
-                _ = html_rendering(
+                statistics = buslogic.count_statistics(logdir_path, log_file, config)
+                formated_statistics = buslogic.statistics_formatting(statistics)
+                _ = buslogic.html_rendering(
                     'report.html', formated_statistics, report_date, reportdir_path)
                 logging.info('parsed succesfully.')
         else:
