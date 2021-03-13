@@ -1,17 +1,33 @@
-import sys
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
+import sys
+import argparse
+import json
+import logging
 import re
 import gzip
 from datetime import datetime
 import statistics as stat
 from string import Template
-import logging
-import json
 
+
+# log_format ui_short '$remote_addr  $remote_user $http_x_real_ip [$time_local] "$request" '
+#                     '$status $body_bytes_sent "$http_referer" '
+#                     '"$http_user_agent" "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" '
+#                     '$request_time';
 
 FILE_PATTERN = re.compile(r'nginx-access-ui.log-(\d{8})\d*')
 LOG_LINE_PATTERN = re.compile(r"\"[A-Z]+ ([^\s]+) .* (\d+\.\d+)\n")
 
+config = {
+    "REPORT_SIZE": 1000,
+    "REPORT_DIR": "./reports",
+    "LOG_DIR": "./log",
+    "WORK_LOG_DIR": None,
+    "ERROR_MAX_PERCENT": 100
+}
 
 def get_full_path(location: str) -> str:
     if location.startswith('./'):
@@ -37,7 +53,6 @@ def select_file(location: str, pattern=FILE_PATTERN):
     max_date = ''
     last_log_file = ''
     for elem in mathcing_result:
-        #current_date = get_log_date(file_)
         current_date = elem[1][1]
         if current_date > max_date:
             max_date = current_date
@@ -141,7 +156,7 @@ def set_logging(log_dir):
 
     if log_dir and os.access(log_dir, os.W_OK):
         log_file_name = datetime.now().strftime(
-            "log_analyzer_%Y%m%d_%H%M%S.log"
+            "log_analyzer.log"
         )
         log_file = os.path.join(log_dir, log_file_name)
 
@@ -151,3 +166,49 @@ def set_logging(log_dir):
         format='[%(asctime)s] %(levelname).1s %(message)s',
         datefmt='%Y.%m.%d %H:%M:%S',
     )
+
+
+def main(config):
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--config", nargs='?', default='config.txt', help="store path to config file")
+        args = parser.parse_args()
+        config_path = args.config
+        
+        if config_path:
+            config = parse_config(config_path)
+            
+        if config["WORK_LOG_DIR"]:
+            work_log_dir = get_full_path(config["WORK_LOG_DIR"])
+        else:
+            work_log_dir = None
+        set_logging(work_log_dir)
+
+        logdir_path = get_full_path(config['LOG_DIR'])
+        reportdir_path = get_full_path(config['REPORT_DIR'])
+        log_file, report_date = select_file(logdir_path)
+
+        if not log_file:
+            loggin.info('no suitable file')
+            return None
+
+        report_filename = 'report-{}.{}.{}.html'.format(
+        report_date[0:4], report_date[4:6], report_date[6:])
+
+        if report_filename in os.listdir(reportdir_path):
+            logging.info('report already formed')
+        else:
+            statistics = count_statistics(logdir_path, log_file, config)
+            formated_statistics = statistics_formatting(statistics)
+            _ = html_rendering(
+            'report.html', formated_statistics, report_date, reportdir_path)
+            logging.info('parsed succesfully.')
+        
+    except Exception as ex:
+        msg = "{0}: {1}".format(type(ex).__name__, ex)
+        logging.exception(msg, exc_info=True)
+        raise
+
+
+if __name__ == "__main__":
+    main(config)
