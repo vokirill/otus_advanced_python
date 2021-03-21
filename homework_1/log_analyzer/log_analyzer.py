@@ -11,6 +11,7 @@ import gzip
 from datetime import datetime
 import statistics as stat
 from string import Template
+import datetime
 
 
 # log_format ui_short '$remote_addr  $remote_user $http_x_real_ip [$time_local] "$request" '
@@ -124,7 +125,7 @@ def count_statistics(logdir_path: str, log_file: str, config: dict) -> dict:
     return most_common
 
 
-def statistics_formatting(statistics: dict) -> list:
+def format_statistics(statistics: dict) -> list:
     formated_statistics = []
     for key in statistics.keys():
         elem = {"url": key,
@@ -139,7 +140,7 @@ def statistics_formatting(statistics: dict) -> list:
     return formated_statistics
 
 
-def html_rendering(path_to_report_template: str, statistics: list, date: str, reportdir_path: str):
+def render_html(path_to_report_template: str, statistics: list, date: str, reportdir_path: str):
     with open(path_to_report_template, 'r') as report_template:
         data = report_template.read()
     template = Template(data)
@@ -192,21 +193,21 @@ def main(config):
             loggin.info('no suitable file')
             return None
 
-        report_filename = 'report-{}.{}.{}.html'.format(
-        report_date[0:4], report_date[4:6], report_date[6:])
+        report_date = datetime.date(int(report_date[0:4]),int(report_date[4:6]), int(report_date[6:]))
+        report_date = datetime.datetime.strftime(report_date, "%Y-%m-%d")
+        report_filename = 'report-{}.html'.format(report_date)
 
-        if report_filename in os.listdir(reportdir_path):
+        if os.path.exists(os.path.join(reportdir_path, report_filename )):
             logging.info('report already formed')
-        else:
-            statistics = count_statistics(logdir_path, log_file, config)
-            formated_statistics = statistics_formatting(statistics)
-            _ = html_rendering(
-            'report.html', formated_statistics, report_date, reportdir_path)
-            logging.info('parsed succesfully.')
+            return None
+            
+        statistics = count_statistics(logdir_path, log_file, config)
+        formated_statistics = format_statistics(statistics)
+        _ = render_html(
+        'report.html', formated_statistics, report_date, reportdir_path)
+        logging.info('parsed succesfully.')
         
     except Exception as ex:
-        msg = "{0}: {1}".format(type(ex).__name__, ex)
-        logging.exception(msg, exc_info=True)
         raise
 
 
