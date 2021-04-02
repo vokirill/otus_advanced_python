@@ -42,8 +42,6 @@ GENDERS = {
 class Field(metaclass=ABCMeta):
 
     def __init__(self, required=False, nullable=False):
-        self.errors = {'required': "This field is required.",
-                       'nullable': "This field can't be null"}
         self.required = required
         self.nullable = nullable
 
@@ -63,11 +61,10 @@ class CharField(Field):
         
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_type'] = 'Value type must be str'
 
     def validate(self, value):
         if not isinstance(value, str):
-            raise TypeError(self.errors["invalid_type"])
+            raise TypeError('Value type must be str')
 
     def no_value(self, value):
         return not value
@@ -76,11 +73,10 @@ class CharField(Field):
 class ArgumentsField(Field):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_type'] = 'Value type must be dict'
         
     def validate(self, value):
         if not isinstance(value, dict):
-            raise TypeError(self.errors["invalid_type"])
+            raise TypeError('Value type must be dict')
 
     def no_value(self, value):
         return not value
@@ -89,7 +85,6 @@ class ArgumentsField(Field):
 class EmailField(CharField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_value'] = "String must contain @"
         
     def validate(self, value):
         super().validate(value)
@@ -97,7 +92,7 @@ class EmailField(CharField):
             return
 
         if "@" not in value:
-            raise ValueError(self.errors['invalid_value'])
+            raise ValueError("String must contain @")
 
     def no_value(self, value):
         return not value
@@ -106,23 +101,20 @@ class EmailField(CharField):
 class PhoneField(Field):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_type'] = "Value type must be str or int"
-        self.errors['invalid_value'] = "First digit have to be 7"
-        self.errors['invalid_value_len'] = "Len of phone number must be 11"
         
     def validate(self, value):
         if not isinstance(value, (int, str)):
-            raise TypeError(self.errors['invalid_type'])
+            raise TypeError("Value type must be str or int")
 
         if self.no_value(value):
             return
 
         value_str = str(value)
         if len(value_str) != 11:
-            raise ValueError(self.errors['invalid_value_len'])
+            raise ValueError("Len of phone number must be 11")
 
         if not value_str.startswith("7"):
-            raise ValueError(self.errors['invalid_value'])
+            raise ValueError("First digit have to be 7")
 
     def no_value(self, value):
         return not value
@@ -131,9 +123,6 @@ class PhoneField(Field):
 class DateField(CharField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_format'] = "Value format must be DD.MM.YYYY"
-        self.errors['invalid_date'] = "Not valid date format"
-        
 
     def _to_datetime(self, value):
         return datetime.datetime.strptime(value, "%d.%m.%Y")
@@ -145,12 +134,12 @@ class DateField(CharField):
         super().validate(value)
 
         if not re.match(r"\d{2}\.\d{2}.\d{4}", value):
-            raise ValueError(self.errors['invalid_format'])
+            raise ValueError("Value format must be DD.MM.YYYY")
 
         try:
             self._to_datetime(value)
         except (TypeError, ValueError):
-            raise ValueError(self.errors['invalid_date'])
+            raise ValueError("Not valid date format")
 
     def no_value(self, value):
         return not value
@@ -162,8 +151,6 @@ class DateField(CharField):
 class BirthDayField(DateField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_year'] = "Age must be less than 70 years"
-        self.errors['back_to_the_future'] = "Date mustn't be in the future"
 
     def validate(self, value):
         super().validate(value)
@@ -176,10 +163,10 @@ class BirthDayField(DateField):
         delta = relativedelta(now, date_value)
         years_delta = delta.years
         if not (0 <= years_delta < 70):
-            raise ValueError(self.errors['invalid_year'])
+            raise ValueError("Age must be less than 70 years")
 
         if now < date_value:
-            raise ValueError(self.errors['back_to_the_future'])
+            raise ValueError("Date musn't be in the future")
 
     def no_value(self, value):
         return not value
@@ -188,18 +175,16 @@ class BirthDayField(DateField):
 class GenderField(Field):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_type'] = "Value type must be int"
-        self.errors['invalid_value'] = "Value must be 0, 1 or 2"
 
     def validate(self, value):
         if not isinstance(value, int):
-            raise TypeError(self.errors['invalid_type'])
+            raise TypeError("Value type must be int")
 
         if self.no_value(value):
             return
 
         if value not in GENDERS:
-            raise ValueError(self.errors['invalid_value'])
+            raise ValueError("Value must be 0, 1 or 2")
 
     def no_value(self, value):
         return False
@@ -208,19 +193,17 @@ class GenderField(Field):
 class ClientIDsField(Field):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.errors['invalid_type'] = "Value type must be list"
-        self.errors['invalid_value'] = "Type of elements of list must be int"
 
     def validate(self, value):
         if not isinstance(value, list):
-            raise TypeError(self.errors['invalid_type'])
+            raise TypeError("Value type must be list")
 
         if self.no_value(value):
             return
 
         for elem in value:
             if not isinstance(elem, int):
-                raise ValueError(self.errors['invalid_value'])
+                raise ValueError("Type of elements of list must be int")
 
     def no_value(self, value):
         return not value
@@ -229,14 +212,14 @@ class AbstractRequest(metaclass=ABCMeta):
     
     def __init__(self, **kwargs):
         
-        if not hasattr(self, 'errors'):
-            self.errors = {}
+        self.errors = {}
         self.errors['required'] = "Field {} is required"
         self.errors['nullable'] = "Field {} can't be empty"
         self.errors['unexpected'] = "Field {} is unexpected"
 
         self.request_errors = {}
         self.field_classes = {}
+        self.is_valid  = {} 
         for field_name in dir(self):
             field_value = getattr(self, field_name, None)
             if isinstance(field_value, Field):
@@ -277,20 +260,13 @@ class AbstractRequest(metaclass=ABCMeta):
                     field_cls.validate(field_value)
                 except (TypeError, ValueError) as ex:
                     self.request_errors[field_name] = str(ex)
+                
+            self.is_valid[field_name] = True
 
 
 class ClientsInterestsRequest(AbstractRequest):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
-
-    def get_answer(self, store, context, is_admin):
-        context["nclients"] = len(self.client_ids)
-        result = {}
-        for cid in self.client_ids:
-            result[str(cid)] = scoring.get_interests(store=store, cid=cid)
-
-        return result
-
 
 class OnlineScoreRequest(AbstractRequest):
     first_name = CharField(required=False, nullable=True)
@@ -307,15 +283,13 @@ class OnlineScoreRequest(AbstractRequest):
             ("gender", "birthday")
         ]
         pairs_str = ", ".join(["(%s, %s)" % pair for pair in self.field_pairs])
-        if not hasattr(self, 'errors'):
-            self.errors = {}
-        self.errors['invalid_pairs'] = "Request must have at least one pair with non-empty values of: {}".format(pairs_str)
         super().__init__(**kwargs)
 
     def validate(self):
         
         super().validate()
-
+        ####ЭТО СТАТРЫЙ КУСОК КОДА, ДО ПРОВЕРКИ, ОСТАВИЛ ЕГО НА БУДУЩЕЕ В ОБРАЗОВАТЕЛЬНЫХ ЦЕЛЯХ
+        '''
         is_valid = False
         for pair in self.field_pairs:
             field_1_value = getattr(self, pair[0], None)
@@ -332,29 +306,20 @@ class OnlineScoreRequest(AbstractRequest):
                     break
                
         if not is_valid:
-            self.request_errors["invalid_pairs"] = self.errors["invalid_pairs"]
+            self.request_errors["invalid_pairs"] = "Request must have at least one pair with non-empty values of: {}".format(", ".join(["(%s, %s)" % pair for pair in self.field_pairs]))
+            # = self.errors["invalid_pairs"]
+        '''
         
+        if not self.is_valid:
+            return self.is_valid
 
-    def get_answer(self, store, context, is_admin):
-        filled_field_names = [
-            field_name
-            for field_name in self.field_classes.keys()
-            if getattr(self, field_name, None) is not None
-        ]
-        context["has"] = filled_field_names
-
-        if is_admin:
-            result = 42
-        else:
-            result = scoring.get_score(
-                store=store,
-                phone=self.phone, email=self.email,
-                birthday=self.birthday, gender=self.gender,
-                first_name=self.first_name, last_name=self.last_name
-            )
-
-        return {"score": result}
-
+        if not (self.phone and self.email) and not (self.first_name and self.last_name) \
+                and not bool(self.gender is not None and self.birthday):
+            
+            self.request_errors["invalid_pairs"] = "Request must have at least one pair with non-empty values of: {}".format(", ".join(["(%s, %s)" % pair for pair in self.field_pairs]))
+            return False
+        return True
+        
 
 class MethodRequest(AbstractRequest):
     account = CharField(required=False, nullable=True)
@@ -376,6 +341,35 @@ def check_auth(request):
         return True
     return False
 
+def get_score_answer(store, context, is_admin, handler):
+    filled_field_names = [
+            field_name
+            for field_name in handler.field_classes.keys()
+            if getattr(handler, field_name, None) is not None
+        ]
+    context["has"] = filled_field_names
+
+    if is_admin:
+        result = 42
+    else:
+        result = scoring.get_score(
+            store=store,
+            phone=handler.phone, email=handler.email,
+            birthday=handler.birthday, gender=handler.gender,
+            first_name=handler.first_name, last_name=handler.last_name
+        )
+    return {"score": result}
+
+
+def get_interest_answer(store, context, is_adminm, handler):
+    context["nclients"] = len(handler.client_ids)
+    result = {}
+    for cid in handler.client_ids:
+        result[str(cid)] = scoring.get_interests(store=store, cid=cid)
+
+    return result
+
+
 def method_handler(request, context, store):
     
     handlers = {
@@ -385,7 +379,6 @@ def method_handler(request, context, store):
     
     methodrequest = MethodRequest(**request["body"])
     
-
     if methodrequest.request_errors:
         return methodrequest.request_errors, INVALID_REQUEST
         
@@ -400,8 +393,10 @@ def method_handler(request, context, store):
     if handler.request_errors:
         return handler.request_errors, INVALID_REQUEST
         
-        
-    return handler.get_answer(store, context, methodrequest.is_admin), OK
+    if methodrequest.method == "online_score":
+        return get_score_answer(store, context, methodrequest.is_admin, handler), OK
+    elif methodrequest.method == "clients_interests":
+        return get_interest_answer(store, context, methodrequest.is_admin, handler), OK
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
